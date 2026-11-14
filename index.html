@@ -1270,6 +1270,8 @@ flushPending();
               color: #1d2a44; background: linear-gradient(135deg, #e9f0ff, #c9d8ff); box-shadow: 0 12px 30px rgba(0,0,0,.35); display: grid; grid-template-columns: 38px 1fr; gap: 8px; align-items: center; }
   .att-card .ph { width: 38px; height: 46px; border-radius: 6px; background: #9fb3df; display: grid; place-items: center; font-size: 22px; }
 
+  #madeBy { position: fixed; right: 10px; bottom: 8px; z-index: 96; pointer-events: none; user-select: none; direction: ltr;
+            font: 600 11px/1 'Inter', sans-serif; letter-spacing: .02em; color: var(--text); opacity: .42; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
   @keyframes iBob { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
   @keyframes iArmL { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-10deg); } }
   @keyframes iArmR { 0%,100% { transform: rotate(0); } 50% { transform: rotate(10deg); } }
@@ -1295,6 +1297,8 @@ flushPending();
   </div>
   <button class="st-skip" id="stSkip" type="button">Skip →</button>
 </div>
+
+<div id="madeBy">Made by Ahmed Anwar Abd El-Nabi</div>
 
 <div id="inlo" class="away" aria-label="Inlo — study helper">
   <div id="inloBub" class="i-bub"></div>
@@ -1357,7 +1361,7 @@ flushPending();
   const E = { x: -300, y: 300, s: 1, tilt: 0, tiltT: 0, flight: null, drag: null };       // motion engine state
   const st = { w: 86, h: 108, busy: false, stage: false, sleep: false, parked: 0, nextRoam: 0, hints: 3,
                clicks: [], lastAct: Date.now(), lastPtr: 0, px: innerWidth / 2, py: innerHeight / 2, look: null, qShown: 0,
-               idleNag: false, setupNag: false, proctor: false, att: false, attDone: false, look: '', spotEl: null, lastTalk: 0, breakNag: false, examStart: 0, lastChat: Date.now(), moodT: null, actT: null, bubT: null, pup: [[0,0],[0,0]] };
+               idleNag: false, setupNag: false, nextDua: 0, proctor: false, att: false, attDone: false, look: '', spotEl: null, lastTalk: 0, breakNag: false, examStart: 0, lastChat: Date.now(), moodT: null, actT: null, bubT: null, pup: [[0,0],[0,0]] };
   const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(K + k); localStorage.setItem(K + k, v); } catch { return null; } };
   const now = () => Date.now();
   const nm = () => setup.name;
@@ -1854,9 +1858,15 @@ flushPending();
     ov.remove(); document.body.classList.remove('inlo-front'); st.att = false; st.nextRoam = now() + 15000; mood(baseMood());
   }
 
+  const DUA_EVERY = 7 * 60000;
+  const duaMsg = () => { act('wave', 2400); mood(st.sleep ? 'sleep' : 'happy', 1800); say('برّكوا 🤍<br>متنسونيش من دعواكم 🤲', { ms: 6500 }); };
+
   /* ---------- background loop: roaming, idle nudges ---------- */
   setInterval(() => {
     const t = now(), v = view();
+    if (st.nextDua && t >= st.nextDua && !st.stage && !st.att && !st.busy && !IN.classList.contains('away') && !E.flight && !st.down) {
+      st.nextDua = t + DUA_EVERY; duaMsg(); return;
+    }
     if (st.stage || st.att || IN.classList.contains('away') || st.down || E.drag) return;
     if (!st.busy && !st.sleep && !E.flight && !BUB.classList.contains('on') && t > st.nextRoam && t > st.parked) { roam(); st.nextRoam = t + (st.proctor ? 15000 + Math.random() * 10000 : 9000 + Math.random() * 7000); }
     if (st.proctor && inExamQ() && Math.random() < .12) lookAt(pickOne([...document.querySelectorAll('#qOptions .opt, #qText')]) || null, 1600);
@@ -1962,10 +1972,12 @@ flushPending();
     st.stage = false; st.leaving = false; st.spotEl = null; document.body.classList.remove('inlo-stage'); STAGE.remove();
     st.nextRoam = now() + 9000;
     if (setup.gender && st.look !== setup.gender) { setLook(setup.gender, true, false); await wait(1500); }
+    st.nextDua = now() + 7000;
     if (st.sleep) { mood('sleep'); IN.classList.add('sleeping'); const h = home(); return flyTo(h.x, h.y); }
     act('wave');
     if (first) say(`يلا بينا${YA(nm())}! ${G('اختار', 'اختاري')} المحاضرة وأنا معاك 🪄<br><span class="i-sm">لو ${G('احتجتني', 'احتجتيني')} ${G('دوس', 'دوسي')} عليّا في أي وقت</span>`, { ms: 6500 });
     else say(pickOne([`بالتوفيق${YA(nm())} 🤍`, 'يلا نذاكر ✨', `${G('جاهز', 'جاهزة')}؟ 🚀`]), { ms: 2600 });
+    st.nextDua = now() + (first ? 7000 : 3000);
     lateNight();
   }
   $('stSkip').onclick = () => { if (st.stage) endStage(false); };
@@ -1979,7 +1991,7 @@ flushPending();
   size(); requestAnimationFrame(step); setTimeout(blinkLoop, 1500);
   st.sleep = ls('sleep') === '1' && !!ls('met');
   const skipStage = location.hash === '#admin' || !$('view-setup') || $('view-setup').classList.contains('hidden-view');
-  if (skipStage) { STAGE.remove(); setLook(setup.gender, false); const t = target(); E.x = t.x; E.y = t.y; IN.classList.remove('away'); if (st.sleep) { mood('sleep'); IN.classList.add('sleeping'); } }
+  if (skipStage) { st.nextDua = now() + 4000; STAGE.remove(); setLook(setup.gender, false); const t = target(); E.x = t.x; E.y = t.y; IN.classList.remove('away'); if (st.sleep) { mood('sleep'); IN.classList.add('sleeping'); } }
   else runStage();
 })();
 </script>
